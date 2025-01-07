@@ -22,6 +22,7 @@ namespace KBEngine{
 	SCRIPT_METHOD_DECLARE("deregisterEvent",				pyDeregisterEvent,					METH_VARARGS | METH_KEYWORDS,	0)	\
 	SCRIPT_METHOD_DECLARE("fireEvent",						pyFireEvent,						METH_VARARGS | METH_KEYWORDS,	0)	\
 	SCRIPT_METHOD_DECLARE("getComponent",					pyGetComponent,						METH_VARARGS | METH_KEYWORDS,	0)	\
+	SCRIPT_METHOD_DECLARE("getComponents",					pyGetComponents,					METH_VARARGS | METH_KEYWORDS,	0)	\
 
 	
 #define ENTITY_METHOD_DECLARE_END()																									\
@@ -1316,13 +1317,23 @@ public:																										\
 		}																									\
 																											\
 		char* componentName = NULL;																			\
+		PyObject* pyComponentType = NULL;																	\
 		if(currargsSize == 1)																				\
 		{																									\
-			if(!PyArg_ParseTuple(args, "s", &componentName))												\
+			if (!PyArg_ParseTuple(args, "O", &pyComponentType))												\
 			{																								\
 				PyErr_Format(PyExc_AssertionError, "%s::getComponent:: args error!", pobj->scriptName());	\
 				PyErr_PrintEx(0);																			\
 				Py_RETURN_NONE;																				\
+			}																								\
+																											\
+			if (PyUnicode_Check(pyComponentType)) {															\
+				componentName = const_cast<char*>(PyUnicode_AsUTF8AndSize(pyComponentType, NULL));			\
+			}																								\
+			else if (PyType_Check(pyComponentType))															\
+			{																								\
+				PyObject* pyName = PyObject_GetAttrString(pyComponentType, "__name__");						\
+				componentName = const_cast<char*>(PyUnicode_AsUTF8AndSize(pyName, NULL));					\
 			}																								\
 																											\
 			if(!componentName)																				\
@@ -1337,26 +1348,77 @@ public:																										\
 		else if(currargsSize == 2)																			\
 		{																									\
 			PyObject* pyobj = NULL;																			\
-			if (!PyArg_ParseTuple(args, "sO", &componentName, &pyobj))										\
+			if (!PyArg_ParseTuple(args, "OO", &pyComponentType, &pyobj))									\
 			{																								\
 				PyErr_Format(PyExc_AssertionError, "%s::getComponent:: args error!", pobj->scriptName());	\
 				PyErr_PrintEx(0);																			\
 				Py_RETURN_NONE;																				\
 			}																								\
 																											\
-			if(!componentName)																				\
+			if (PyUnicode_Check(pyComponentType)) {															\
+				componentName = const_cast<char*>(PyUnicode_AsUTF8AndSize(pyComponentType, NULL));			\
+			}																								\
+			else if (PyType_Check(pyComponentType))															\
+			{																								\
+				PyObject* pyName = PyObject_GetAttrString(pyComponentType, "__name__");						\
+				componentName = const_cast<char*>(PyUnicode_AsUTF8AndSize(pyName, NULL));					\
+			}																								\
+																											\
+			if (!componentName)																				\
 			{																								\
 				PyErr_Format(PyExc_AssertionError, "%s::getComponent:: componentName error!", pobj->scriptName());\
 				PyErr_PrintEx(0);																			\
 				Py_RETURN_NONE;																				\
 			}																								\
 																											\
+																											\
 			return pobj->pyGetComponent(componentName, (pyobj == Py_True));									\
 		}																									\
 																											\
 		Py_RETURN_NONE;																						\
 	}																										\
-
+																											\
+	PyObject* pyGetComponents()																				\
+	{																										\
+		const ScriptDefModule::COMPONENTDESCRIPTION_MAP* pComponentDescrs =									\
+		& pScriptModule_->getComponentDescrs();																\
+		PyObject* pyObj = PyList_New(0);																	\
+																											\
+		ScriptDefModule::COMPONENTDESCRIPTION_MAP::const_iterator iter1 = pComponentDescrs->begin();		\
+		for (; iter1 != pComponentDescrs->end(); ++iter1)													\
+		{																									\
+			PyObject* pComponentProperty = PyObject_GetAttrString(this, iter1->first.c_str());				\
+			if (pComponentProperty)																			\
+			{																								\
+				if (PyObject_TypeCheck(pComponentProperty, EntityComponent::getScriptType()))				\
+				{																							\
+					PyList_Append(pyObj, pComponentProperty);												\
+				}																							\
+				else																						\
+				{																							\
+					PyErr_Format(PyExc_AssertionError, "%s.%s is not property of EntityComponent!",			\
+						scriptName(), iter1->first.c_str());												\
+					PyErr_PrintEx(0);																		\
+				}																							\
+																											\
+				Py_DECREF(pComponentProperty);																\
+			}																								\
+			else																							\
+			{																								\
+				PyErr_Clear();																				\
+			}																								\
+		}																									\
+																											\
+		return pyObj;																						\
+	}																										\
+																											\
+    static PyObject* __py_pyGetComponents(PyObject* self, PyObject* args)									\
+	{																										\
+		CLASS* pobj = static_cast<CLASS*>(self);															\
+																											\
+		return pobj->pyGetComponents();																		\
+	}																										\
+																											\
 
 #define ENTITY_CPP_IMPL(APP, CLASS)																			\
 	class EntityScriptTimerHandler : public TimerHandler													\
