@@ -2182,7 +2182,8 @@ bool FixedDictType::initialize(XML* xml, TiXmlNode* node, std::string& parentNam
 					ERROR_MSG(fmt::format("FixedDictType::initialize: key[{}] did not find type[{}]!\n", 
 						typeName.c_str(), strType.c_str()));
 				
-					dataType->decRef();
+					if(dataType != NULL)
+						dataType->decRef();
 					pDictItemDataType->dataType = NULL;
 					return false;
 				}
@@ -2340,7 +2341,8 @@ bool FixedDictType::initialize(script::entitydef::DefContext* pDefContext, const
 				ERROR_MSG(fmt::format("PyEntityDef::FixedDictType::initialize: {}.{} is not a legal data type[{}], file: \"{}\"!\n",
 					defContextItem.moduleName.c_str(), defContextItem.attrName.c_str(), defContextItem.returnType, defContextItem.pyObjectSourceFile));
 
-				dataType->decRef();
+				if(dataType != NULL)
+					dataType->decRef();
 				pDictItemDataType->dataType = NULL;
 				return false;
 			}
